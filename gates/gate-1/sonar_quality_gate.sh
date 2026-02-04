@@ -3,12 +3,18 @@ set -euo pipefail
 
 echo "🔍 Gate-1: SonarQube Quality Gate"
 
-STATUS=$(curl -s -u "lms_sonartoken:" \
-  "sonar_server/api/qualitygates/project_status?projectKey=lms" \
+: "${SONAR_HOST_URL:?SONAR_HOST_URL not set}"
+: "${SONAR_PROJECT_KEY:?SONAR_PROJECT_KEY not set}"
+: "${SONAR_TOKEN:?SONAR_TOKEN not set}"
+
+STATUS=$(curl -s -u "${SONAR_TOKEN}:" \
+  "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${SONAR_PROJECT_KEY}" \
   | jq -r '.projectStatus.status')
 
+echo "SonarQube Quality Gate Status: $STATUS"
+
 if [ "$STATUS" != "OK" ]; then
-  echo "❌ SonarQube Quality Gate FAILED ($STATUS)"
+  echo "❌ SonarQube Quality Gate FAILED"
   exit 1
 fi
 
