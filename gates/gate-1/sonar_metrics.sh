@@ -3,45 +3,43 @@ set -euo pipefail
 
 echo "📊 Gate-1: SonarQube Metrics Enforcement"
 
+# ---- Required env vars ----
 : "${SONAR_HOST_URL:?SONAR_HOST_URL not set}"
 : "${SONAR_TOKEN:?SONAR_TOKEN not set}"
 : "${SONAR_PROJECT_KEY:?SONAR_PROJECT_KEY not set}"
 
+# ---- Thresholds ----
 MIN_COVERAGE=80
 MAX_BLOCKER=0
 MAX_CRITICAL=0
 
-# ---- Try API base paths (auto-detect) ----
+# ---- Try possible API base paths ----
 API_BASES=(
-  "${SONAR_HOST_URL%/}/api"
-  "${SONAR_HOST_URL%/}/sonar/api"
+  "${SONAR_HOST_URL}/api"
+  "${SONAR_HOST_URL}/sonar/api"
 )
 
-RESPONSE=""
-API_USED=""
+API_BASE=""
 
-for API in "${API_BASES[@]}"; do
-  echo "🔍 Trying Sonar API base: $API"
-
-  RESPONSE=$(curl -s \
-    -u "${SONAR_TOKEN}:" \
-    -H "Accept: application/json" \
-    "$API/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=coverage,blocker_issues,critical_issues")
-
-  if echo "$RESPONSE" | jq -e . >/dev/null 2>&1; then
-    API_USED="$API"
+for base in "${API_BASES[@]}"; do
+  echo "🔍 Testing Sonar API base: $base"
+  if curl -sf -u "${SONAR_TOKEN}:" "$base/system/status" | jq -e '.status' >/dev/null 2>&1; then
+    API_BASE="$base"
+    echo "✅ Using Sonar API base: $API_BASE"
     break
   fi
 done
 
-if [ -z "$API_USED" ]; then
-  echo "❌ Could not detect valid SonarQube API endpoint"
-  echo "🔎 Response sample:"
-  echo "$RESPONSE" | head -n 20
+if [ -z "$API_BASE" ]; then
+  echo "❌ Unable to determine SonarQube API base URL"
   exit 1
 fi
 
-echo "✅ Using Sonar API: $API_USED"
+# ---- Query metrics ----
+RESPONSE=$(curl -sf \
+  -u "${SONAR_TOKEN}:" \
+  -H "Accept: application/json" \
+  "${API_BASE}/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=coverage,blocker_issues,critical_issues")
 
 # ---- Extract values ----
 COVERAGE=$(echo "$RESPONSE" | jq -r '.component.measures[] | select(.metric=="coverage") | .value // "0"')
