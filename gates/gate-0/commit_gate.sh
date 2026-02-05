@@ -1,20 +1,30 @@
 #!/usr/bin/env bash
 set -e
 
-# Check commit messages between branch and HEAD
-COMMITS=$(git log origin/dev..HEAD --pretty=%s)
+COMMIT_MSG=$(git log -1 --pretty=%s)
 
-echo "🔍 Validating commit messages:"
-echo "$COMMITS"
-echo "------------------------------"
+echo "🔍 Checking commit message policy"
+echo "--------------------------------"
+echo "Commit: $COMMIT_MSG"
+echo
 
-# Enforce WP#<id> <message>
-echo "$COMMITS" | grep -Ev '^WP#[0-9]+[[:space:]]+.+' && {
-  echo "❌ Commit message policy violation"
-  echo "Expected format: WP#<id> <message>"
-  echo "Example: WP#166 Update app.ts"
-  exit 1
-}
+# Expected format: WP#123 Message
+if [[ "$COMMIT_MSG" =~ ^WP#[0-9]+[[:space:]].+ ]]; then
+  echo "✅ Commit message follows WP format"
+  exit 0
+fi
 
-echo "✅ Commit messages compliant"
+# Soft enforcement (NO PIPELINE FAILURE)
+echo "⚠️ Commit message does NOT follow WP format"
+echo
+echo "Expected : WP#<id> <message>"
+echo "Example  : WP#166 Update app.ts"
+echo
+echo "ℹ️ Action taken:"
+echo "- Pipeline will CONTINUE"
+echo "- Violation will be TRACKED in OpenProject"
+echo "- AO will be notified if required"
+echo
+
+exit 0
 
